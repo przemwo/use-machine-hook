@@ -12,13 +12,9 @@ const toggleState = {
     on: {
       close: "closing",
     },
-    effect: ({ msg }) => {
-      setTimeout(() => {
-        msg("open");
-      }, 500);
-    },
-    done: {
-      open: "open",
+    effect: {
+      src: "fooEffect",
+      done: "open",
     },
   },
   open: {
@@ -30,40 +26,46 @@ const toggleState = {
     on: {
       open: "opening",
     },
-    effect: ({ msg }) => {
-      setTimeout(() => {
-        msg("close");
-      }, 500);
-    },
-    done: {
-      close: "closed",
+    effect: {
+      src: "fooEffect",
+      done: "closed",
     },
   },
 };
 
-const useMachine = (state) => {
+const useMachine = (state, { effects } = {}) => {
   const [current, setCurrent] = useState(state.initial);
 
-  const msg = useCallback((msg, canTransition = () => true) => {
-    if (!canTransition()) return;
-    if (state[current].on[msg]) {
-      setCurrent(state[current].on[msg])
-    } else if (state[current].done[msg]) {
-      setCurrent(state[current].done[msg]);
-    }
-  }, [current, state]);
+  const msg = useCallback(
+    (msg) => state[current].on[msg] && setCurrent(state[current].on[msg]),
+    [current, state]
+  );
 
+  const done = useCallback(
+    (canTransition = () => true) => canTransition() && setCurrent(state[current].effect.done),
+    [current, state]
+  );
+  
   useEffect(() => {
     let canTransition = true;
-    state[current].effect && state[current].effect({ msg: (m) => msg(m, () => canTransition) });
+    state[current].effect && effects[state[current].effect.src] && effects[state[current].effect.src]({ done: () => done(() => canTransition) });
     return () => canTransition = false;
-  }, [current, state, msg]);
+  }, [current, state, done, effects]);
 
   return { current, msg };
 };
 
 export const App = () => {
-  const machine = useMachine(toggleState);
+
+  const fooEffect = ({ done }) => {
+    setTimeout(() => {
+      done();
+    }, 500);
+  };
+
+  const machine = useMachine(toggleState, {
+    effects: { fooEffect }
+  });
   console.log('current: ', machine.current)
   return(
     <div>
